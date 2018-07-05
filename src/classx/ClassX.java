@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -135,11 +136,23 @@ public class ClassX extends JFrame {
 			return over!=lOver; }
 
 
-		BasicStroke bus, thick, sNormal, thin, link;
+		BasicStroke errorBus, bus, errorThick, errorThin, thick, sNormal, thin, link;
+		{ 
+		errorBus= new BasicStroke((float) (2));
+		bus= new BasicStroke((float) (2));
+		errorThick= new BasicStroke((float) (3.5));
+		thick= new BasicStroke((float) (1.5));
+		sNormal= new BasicStroke((float) (1));
+		errorThin= new BasicStroke((float) (1.5));
+		thin= new BasicStroke((float) (.5));
+		link= new BasicStroke((float) (3), BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{3}, 0); }
+
+		
 		double rX, rY;
+		double connSize=8;
 
 		protected void paintComponent(Graphics g) {
-			// TODO Auto-generated method stub
+			
 			super.paintComponent(g);
 			Graphics2D g2= (Graphics2D) g;
 			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -156,11 +169,6 @@ public class ClassX extends JFrame {
 			g2.setColor(Color.blue);
 			//g2.fill(new Ellipse2D.Double(rX-2, rY-2, 4, 4));
 
-			bus= new BasicStroke((float) (2));
-			thick= new BasicStroke((float) (1.5));
-			sNormal= new BasicStroke((float) (1));
-			thin= new BasicStroke((float) (.5));
-			link= new BasicStroke((float) (3), BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{3}, 0);
 			Font bold= new Font("Arial", Font.BOLD, (int) Math.round(12));
 			Font normal= new Font("Arial", Font.PLAIN, (int) Math.round(12));
 			Font small= new Font("Arial", Font.PLAIN, (int) Math.round(10));
@@ -169,7 +177,6 @@ public class ClassX extends JFrame {
 			Color cGhost= new Color(200,200,200,(int) Math.floor(255*timeFactor));
 			Color cBus= Color.gray;
 			Color cMark= new Color(50,50,255);
-			double connSize=8;
 
 
 			synchronized (clss) {
@@ -186,56 +193,18 @@ public class ClassX extends JFrame {
 				
 				// dependencies
 				for (VClass cls : clss.values()){
-					int depCnt=1;
-					if (!alt)
-						for (String dep : cls.deps){
-							VClass depC= clss.get(dep);
-							if (depC!=null){
-								if (!depC.refs.contains(cls)) depC.refs.add(cls);
-								//								double fx= cls.isBus()? depC.isBus()? (cls.p.x+ depC.p.x)/2 : depC.p.x: cls.p.x;
-								double fx= cls.p.x+ 0*(!ctrl && cls.isBus()?depCnt++:0);
-								if (fx<cls.minX) cls.minX= fx;
-								if (fx>cls.maxX) cls.maxX= fx;
-								Point f= new Point(fx, cls.p.y);
-
-								//								double tx= depC.isBus()? cls.isBus()? (cls.p.x+ depC.p.x)/2 : cls.p.x : depC.p.x;
-								double tx= !ctrl && depC.isBus()? fx : depC.p.x;
-								if (tx<depC.minX) depC.minX= tx;
-								if (tx>depC.maxX) depC.maxX= tx;
-
-								Point t= new Point( tx, depC.p.y);
-
-								Point v= f.vect(t);
-								g2.setStroke(thin);
-								g2.setColor(cls==over?depC.cMain:depC.cSec);
-								
-								//g2.setColor(cls==over || depC==over?Color.blue:cls==selected || depC==selected?Color.black: over!=null?cGhost:Color.lightGray);
-								drawLine( g2, f.add(v.unit()), f.add(v.unit().mul(v.size()/2)));
-
-								g2.setStroke(thick);
-
-								drawLine( g2, f.add(v.unit().mul(v.size()/2)), f.add(v));
-
-								
-								if (!ctrl){
-									if (false && cls.isBus()){
-										g2.setColor(Color.black);
-										drawLine( g2, f.add(v.unit().n().mul(-connSize)), f.add(v.unit().mul(connSize)));
-										drawLine( g2, f.add(v.unit().n().mul(connSize)), f.add(v.unit().mul(connSize)));
-										drawLine( g2, f.add(v.unit().n().mul(-connSize)), f.add(v.unit().n().mul(connSize))); }
-									if (depC.isBus()){
-										if (cls==over) depC.overX= t.x; 
-										GeneralPath tr = new GeneralPath();
-										Point p;
-										p= t.add(v.unit().n().mul(-connSize)); tr.moveTo( p.x, p.y );
-										p= t.add(v.unit().mul(-connSize)); tr.lineTo( p.x, p.y );
-										p= t.add(v.unit().n().mul(connSize)); tr.lineTo( p.x, p.y );
-										g2.fill(tr); }}
-							}}
+					
+					cls.circles= new ArrayList<VClass>();
+					
+					if ( !alt )
+						
+						drawDeps(g2, cls, over==cls, cls.circles);
 					
 					// templates dependencies
 						for (String sel : cls.sels){
+							
 							VClass depC= clss.get(sel);
+							
 							if (depC!=null){
 
 								double fx= depC.isBus()? cls.isBus()? (cls.p.x+ depC.p.x)/2 : cls.p.x : depC.p.x;
@@ -249,13 +218,13 @@ public class ClassX extends JFrame {
 
 								Point v= Point.vect(fx, depC.p.y, tx, cls.p.y);
 
-								g2.setStroke(thin);
+								g2.setStroke(cls.circles.contains(depC)?errorThin:thin);
 
-								g2.setColor(!alt?new Color(200,200,255):cls.mark?cMark:cGhost);
+								g2.setColor(cls.circles.contains(depC)?Color.red:!alt?new Color(200,200,255):cls.mark?cMark:cGhost);
 								drawLine( g2, f.add(v.unit().mul(20)), f.add(v.unit().mul(v.size()/2)));
 								fillOval(  g2,  f.add(v.unit().mul(20)).add(-2,-2), f.add(v.unit().mul(20)).add(2,2) );
 								
-								g2.setStroke(thick);
+								g2.setStroke(cls.circles.contains(depC)?errorThick:thick);
 								//g2.setColor(!alt?new Color(240,240,255):cls==over || depC==over?Color.blue:cls==selected || depC==selected?Color.black:Color.lightGray);
 								drawLine( g2, f.add(v.unit().mul(v.size()/2	)), f.add(v)); }}}
 
@@ -273,8 +242,10 @@ public class ClassX extends JFrame {
 						if (flipY) g2.scale(-1,-1);
 						g2.translate(flipY?-cls.p.x:cls.p.x, flipY?-cls.p.y:cls.p.y);
 						c= 5;
+						
+						boolean problem=  cls.circles.size()>0 && cls.circles.contains(over);
 
-						g2.setColor(cls.cMain);
+						g2.setColor( problem ? Color.red:cls.cMain);
 
 						double ww= 0; // some additional widths
 						
@@ -288,16 +259,14 @@ public class ClassX extends JFrame {
 							g2.setStroke(thick);
 							g2.draw( new Ellipse2D.Double( -c, -c, c*2, c*2)); }
 						
-						g2.setColor(cls.cSec);
+						g2.setColor( problem ? Color.red : cls.cSec);
 						// bus line
 						if (!ctrl && !alt && cls.isBus()){
-							g2.setStroke(new BasicStroke((float)(ww=Math.sqrt(cls.refs.size()/2f)+0.5)));
+							g2.setStroke(new BasicStroke((float)( ww = Math.sqrt( cls.refs.size()/2f)+0.5)) );
 							drawLine(g2, cls.minX-cls.p.x-7, 0, cls.maxX-cls.p.x+7, 0);
 							if (cls.overX!=cls.p.x)
-								g2.setColor(cls.cMain);
+								g2.setColor( problem ? Color.red : cls.cMain);
 								drawLine(g2, cls.overX-cls.p.x+(cls.p.x>cls.overX?-connSize+1:connSize-1), 0, 0, 0); }
-
-						
 
 						
 						g2.setColor(cls.cMain);
@@ -312,25 +281,25 @@ public class ClassX extends JFrame {
 
 						if (cls.isBus()){
 //							g2.setStroke(thin);
-							cls.selTL= new Point(Math.round(flipY?-sw-c-4:c+4+offX),  Math.round(-8-ww/2));
+							cls.selTL= new Point( Math.round(flipY?-sw-c-4:c+4+offX),  Math.round(-8-ww/2) );
 							cls.selBR= cls.selTL.add(sw+8+ww*2, 16+ww);
-							g2.setColor(over==cls?new Color(255,255,0):selected==cls?new Color(250,250,250):new Color(230,230,230));					
+							g2.setColor( over==cls ? new Color(255,255,0) : selected==cls?new Color(250,250,250):new Color(230,230,230));					
 							fillRoundRect(g2, cls.selTL, cls.selBR, 12, 12);
-							g2.fill(new RoundRectangle2D.Double(Math.round(flipY?-sw-c-4:c+4+offX),  Math.round(-8-ww/2), sw+8+ww*2, 16+ww, 12, 12)); 
-							g2.setColor(over==cls || over==null?cBus:cGhost);
-							drawRoundRect(g2, cls.selTL, cls.selBR, 12, 12);
-							cls.selTL= cls.selTL.add(cls.p);
-							cls.selBR= cls.selBR.add(cls.p);
+							g2.fill( new RoundRectangle2D.Double( Math.round( flipY?-sw-c-4:c+4+offX),  Math.round(-8-ww/2), sw+8+ww*2, 16+ww, 12, 12 )); 
+							g2.setColor( problem ? Color.red: over==cls || over==null ? cBus : cGhost);
+							drawRoundRect( g2, cls.selTL, cls.selBR, 12, 12 );
+							cls.selTL= cls.selTL.add( cls.p );
+							cls.selBR= cls.selBR.add( cls.p );
 						} else
-							g2.setStroke(thin);
+							g2.setStroke( thin );
 						
-						g2.setColor(cls.cMain);
+						g2.setColor( cls.cMain );
 						
 						
 						
-						if (cls.id.toLowerCase().contains("subscription")) paintConnectionIcon(g2, 0, 0);
-						else if (cls.id.toLowerCase().contains("service")) paintServiceIcon(g2, 0, 0);
-						else if (cls.sel!=null) paintTemplateIcon(g2, 0, 0, cls);
+						if ( cls.id.toLowerCase().contains( "subscription" ) ) paintConnectionIcon( g2, 0, 0 );
+						else if ( cls.id.toLowerCase().contains( "service" ) ) paintServiceIcon( g2, 0, 0 );
+						else if ( cls.sel != null ) paintTemplateIcon(g2, 0, 0, cls);
 
 
 
@@ -379,6 +348,77 @@ public class ClassX extends JFrame {
 						g2.setFont(small);
 						a+=s;
 					}}}
+		
+		
+		private boolean drawDeps(Graphics2D g2, VClass cls, boolean analyze, ArrayList<VClass> path){
+			
+			int depCnt=1;
+			path.add(cls);
+			boolean circular= false;
+			
+			for (String dep : cls.deps){
+				
+				VClass depC= clss.get(dep);
+				
+				if (depC!=null){
+					
+					if (!depC.refs.contains(cls)) 
+						depC.refs.add(cls);
+					
+					boolean circle= false;
+					if (analyze)
+						if (!path.contains(depC))
+							circle= drawDeps(g2, depC, analyze, path);
+						else 
+							circle= true;
+
+					//								double fx= cls.isBus()? depC.isBus()? (cls.p.x+ depC.p.x)/2 : depC.p.x: cls.p.x;
+					double fx= cls.isBus() ? depC.isBus() ? cls.p.x : depC.p.x : cls.p.x + 0*(!ctrl && cls.isBus()?depCnt++:0);
+					if (fx<cls.minX) cls.minX= fx;
+					if (fx>cls.maxX) cls.maxX= fx;
+					Point f= new Point(fx, cls.p.y);
+
+					//								double tx= depC.isBus()? cls.isBus()? (cls.p.x+ depC.p.x)/2 : cls.p.x : depC.p.x;
+					double tx= !ctrl && depC.isBus()? fx : depC.p.x;
+					if (tx<depC.minX) depC.minX= tx;
+					if (tx>depC.maxX) depC.maxX= tx;
+
+					Point t= new Point( tx, depC.p.y);
+
+					
+					circular|= circle; 
+
+					
+					Point v= f.vect(t);
+					g2.setStroke(circle?errorThin:thin);
+					g2.setColor(cls==over && !circle?depC.cMain:circle?Color.RED:depC.cSec);
+					
+					//g2.setColor(cls==over || depC==over?Color.blue:cls==selected || depC==selected?Color.black: over!=null?cGhost:Color.lightGray);
+					drawLine( g2, f.add(v.unit()), f.add(v.unit().mul(v.size()/2)));
+
+					g2.setStroke(circle?errorThick:thick);
+
+					drawLine( g2, f.add(v.unit().mul(v.size()/2)), f.add(v));
+
+					
+					if (!ctrl){
+						if (false && cls.isBus()){
+							g2.setColor(Color.black);
+							drawLine( g2, f.add(v.unit().n().mul(-connSize)), f.add(v.unit().mul(connSize)));
+							drawLine( g2, f.add(v.unit().n().mul(connSize)), f.add(v.unit().mul(connSize)));
+							drawLine( g2, f.add(v.unit().n().mul(-connSize)), f.add(v.unit().n().mul(connSize))); }
+						if (depC.isBus()){
+							if (cls==over) depC.overX= t.x; 
+							GeneralPath tr = new GeneralPath();
+							Point p;
+							p= t.add(v.unit().n().mul(-connSize)); tr.moveTo( p.x, p.y );
+							p= t.add(v.unit().mul(-connSize)); tr.lineTo( p.x, p.y );
+							p= t.add(v.unit().n().mul(connSize)); tr.lineTo( p.x, p.y );
+							g2.fill(tr); }}
+				}}
+			if (!circular) path.remove(cls);
+			return circular;
+		}
 
 		public void paintTemplateIcon(Graphics2D g, double x, double y, VClass cls){
 			AffineTransform ot=g.getTransform(); Color oc= g.getColor(); Stroke os= g.getStroke();
@@ -534,6 +574,7 @@ public class ClassX extends JFrame {
 		public final ArrayList<String> deps;
 		public final ArrayList<String> sels= new ArrayList<String>();
 		public final ArrayList<VClass> refs= new ArrayList<VClass>();
+		public ArrayList<VClass> circles= new ArrayList<VClass>();
 		final ArrayList<String> props= new ArrayList<String>();
 		final File srcF;
 		final File tempF;
@@ -601,6 +642,9 @@ public class ClassX extends JFrame {
 	static void analyzeFile(File f){
 		if (!f.exists() || f.getName().startsWith(".")) return;
 		if (f.isDirectory()){
+			String path= f.getPath();
+			if (path.contains("home") || path.contains("nursing") || path.contains("panel") || path.contains("mobile"))
+				return;
 			for (File ff : f.listFiles())
 				analyzeFile(ff);
 		} else {
@@ -646,7 +690,7 @@ public class ClassX extends JFrame {
 						String[] ss= line.split("class");
 						currClass= ss[1].replace('{', ' ').replace('}', ' ').trim();
 						System.err.println("class "+ currClass);
-					} else if (line.contains("import") && line.contains("from") && !line.contains("@angular")){
+					} else if (line.contains("import") && line.contains("from") && !line.contains("@angular") && !line.contains("@ngx-") && !line.contains("rxjs")&& !line.contains("home")&& !line.contains("nursing")&& !line.contains("panel")&& !line.contains("mobile")){
 						String[] ss= (line.indexOf('{')<0 && line.indexOf('}')<0? line.replace("import", "import { ").replace("from", " } from"):line).split("\\{|\\}");
 						if (ss.length<3) continue;
 
